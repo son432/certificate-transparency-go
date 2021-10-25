@@ -208,7 +208,7 @@ func lifetimeInMonths(cert *x509.Certificate) int {
 // GroupSet is set of Log-group names.
 type GroupSet map[string]bool
 
-// GroupByLogs reverses match-map between Logs and Groups.
+// GroupByLogs reverses match-map between Logs and Groupsfgf .
 // Returns map from log-URLs to set of Group-names that contain the log.
 func GroupByLogs(lg LogPolicyData) map[string]GroupSet {
 	result := make(map[string]GroupSet)
