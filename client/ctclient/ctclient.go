@@ -13,8 +13,6 @@
 // limitations under the License.
 
 // ctclient is a command-line utility for interacting with CT logs.
-// try
-
 package main
 
 import (
@@ -446,6 +444,49 @@ func dieWithUsage(msg string) {
 		"   consistency   get consistency proof (needs -size and -prev_size, optionally -tree_hash and -prev_hash)\n"+
 		"   bisect        find log entry by timestamp (needs -timestamp)\n")
 	os.Exit(1)
+}
+
+// func firstValidation()
+
+func verifyConsistency(ctx context.Context, logClient client.CheckLogClient) {
+	if *treeSize <= 0 {
+		glog.Exit("No valid --size supplied")
+	}
+	if *prevSize <= 0 {
+		glog.Exit("No valid --prev_size supplied")
+	}
+	var hash1, hash2 []byte
+	if *prevHash != "" {
+		var err error
+		hash1, err = hashFromString(*prevHash)
+		if err != nil {
+			glog.Exitf("Invalid --prev_hash: %v", err)
+		}
+	}
+	if *treeHash != "" {
+		var err error
+		hash2, err = hashFromString(*treeHash)
+		if err != nil {
+			glog.Exitf("Invalid --tree_hash: %v", err)
+		}
+	}
+	if (hash1 != nil) != (hash2 != nil) {
+		glog.Exitf("Need both --prev_hash and --tree_hash or neither")
+	}
+
+	proof, err := logClient.GetSTHConsistency(ctx, uint64(*prevSize), uint64(*treeSize))
+	if err != nil {
+		exitWithDetails(err)
+	}
+	if hash1 == nil || hash2 == nil {
+		return
+	}
+	// We have tree hashes so we can verify the proof.
+	verifier := logverifier.New(rfc6962.DefaultHasher)
+	if err := verifier.VerifyConsistencyProof(*prevSize, *treeSize, hash1, hash2, proof); err != nil {
+		glog.Exitf("Failed to VerifyConsistencyProof(%x @size=%d, %x @size=%d): %v", hash1, *prevSize, hash2, *treeSize, err)
+	}
+	fmt.Printf("Verified that hash %x @%d + proof = hash %x @%d\n", hash1, *prevSize, hash2, *treeSize)
 }
 
 func main() {
