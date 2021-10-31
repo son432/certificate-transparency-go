@@ -87,7 +87,7 @@ func hashFromString(input string) ([]byte, error) {
 	return nil, fmt.Errorf("hash value %q failed to parse as 32-byte hex or base64", input)
 }
 
-func getSTH(ctx context.Context, logClient client.CheckLogClient) {
+func getSTH(ctx context.Context, logClient client.CheckLogClient) *ct.SignedTreeHead {
 	sth, err := logClient.GetSTH(ctx)
 	if err != nil {
 		exitWithDetails(err)
@@ -96,6 +96,7 @@ func getSTH(ctx context.Context, logClient client.CheckLogClient) {
 	when := ct.TimestampToTime(sth.Timestamp)
 	fmt.Printf("%v (timestamp %d): Got STH for %v log (size=%d) at %v, hash %x\n", when, sth.Timestamp, sth.Version, sth.TreeSize, logClient.BaseURI(), sth.SHA256RootHash)
 	fmt.Printf("%v\n", signatureToString(&sth.TreeHeadSignature))
+	return sth
 }
 
 func chainFromFile(filename string) ([]ct.ASN1Cert, int64) {
@@ -446,9 +447,29 @@ func dieWithUsage(msg string) {
 	os.Exit(1)
 }
 
-// func firstValidation()
+//-----------------------monitor function---------------------------------
+//Retrieve STH periodically (every hour)
+func getSTHperiod(ctx context.Context, logClient client.CheckLogClient, duration int) {
+	var f func()
+	var t *time.Timer
 
+	f = func() {
+		getSTH(ctx, logClient)
+		fmt.Println("----------------------------------------------------")
+		t = time.AfterFunc(time.Duration(duration)*time.Second, f)
+	}
+
+	t = time.AfterFunc(time.Duration(duration)*time.Second, f) //get STH every hour
+
+	defer t.Stop()
+
+	//simulate doing stuff
+	time.Sleep(time.Minute)
+}
+
+//Check consistency between two STH's
 func verifyConsistency(ctx context.Context, logClient client.CheckLogClient) {
+	fmt.Println("hello")
 	if *treeSize <= 0 {
 		glog.Exit("No valid --size supplied")
 	}
@@ -487,6 +508,30 @@ func verifyConsistency(ctx context.Context, logClient client.CheckLogClient) {
 		glog.Exitf("Failed to VerifyConsistencyProof(%x @size=%d, %x @size=%d): %v", hash1, *prevSize, hash2, *treeSize, err)
 	}
 	fmt.Printf("Verified that hash %x @%d + proof = hash %x @%d\n", hash1, *prevSize, hash2, *treeSize)
+}
+
+// LogClient represents a client for a given CT Log instance
+type LogClient struct {
+	jsonclient.JSONClient
+}
+
+// VerifySTHSignature checks the signature in sth, returning any error encountered or nil if verification is
+// successful.
+func (c *LogClient) VerifySTHSignature(sth ct.SignedTreeHead) error {
+	if c.Verifier == nil {
+		// Can't verify signatures without a verifier
+		return nil
+	}
+	return c.Verifier.VerifySTHSignature(sth)
+}
+
+//Check STH's validity
+func (c *LogClient) checkValidity(ctx context.Context, sth *ct.SignedTreeHead) {
+	if err := c.VerifySTHSignature(*sth); err != nil {
+		fmt.Println("the STH is valid")
+		return
+	}
+	fmt.Println("the STH is not valid")
 }
 
 func main() {
@@ -574,8 +619,18 @@ func main() {
 		getConsistencyProof(ctx, logClient)
 	case "bisect":
 		findTimestamp(ctx, logClient)
+	case "getSTHperiod":
+		duration := 5
+		getSTHperiod(ctx, logClient, duration)
 	case "verify":
+		*treeSize = 1110638027
+		*prevSize = 1110638023
+		*treeHash = "3b39e409b60e1467006c130153511a472fec48a8ebec968e17be63e0fba92a3a"
+		*prevHash = "3ef9a93ffebf4e8237f8aab103b632909322965090c58f98e5ccc87f10186f2a"
 		verifyConsistency(ctx, logClient)
+	case "validity":
+		currSTH := getSTH(ctx, logClient)
+		checkValidity(ctx, currSTH)
 	default:
 		dieWithUsage(fmt.Sprintf("Unknown command '%s'", cmd))
 	}
