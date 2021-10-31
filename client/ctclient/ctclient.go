@@ -574,6 +574,8 @@ func main() {
 		getConsistencyProof(ctx, logClient)
 	case "bisect":
 		findTimestamp(ctx, logClient)
+	case "verify":
+		verifyConsistency(ctx, logClient)
 	default:
 		dieWithUsage(fmt.Sprintf("Unknown command '%s'", cmd))
 	}
