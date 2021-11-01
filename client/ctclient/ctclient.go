@@ -510,29 +510,22 @@ func verifyConsistency(ctx context.Context, logClient client.CheckLogClient) {
 	fmt.Printf("Verified that hash %x @%d + proof = hash %x @%d\n", hash1, *prevSize, hash2, *treeSize)
 }
 
-// LogClient represents a client for a given CT Log instance
-type LogClient struct {
-	jsonclient.JSONClient
-}
-
 // VerifySTHSignature checks the signature in sth, returning any error encountered or nil if verification is
 // successful.
-func (c *LogClient) VerifySTHSignature(sth ct.SignedTreeHead) error {
-	if c.Verifier == nil {
-		// Can't verify signatures without a verifier
-		return nil
-	}
-	return c.Verifier.VerifySTHSignature(sth)
-}
 
 //Check STH's validity
-func (c *LogClient) checkValidity(ctx context.Context, sth *ct.SignedTreeHead) {
-	if err := c.VerifySTHSignature(*sth); err != nil {
+func checkValidity(ctx context.Context, logClient client.CheckLogClient, sth *ct.SignedTreeHead) {
+	if err := logClient.VerifySTHSignature(*sth); err == nil {
 		fmt.Println("the STH is valid")
 		return
 	}
 	fmt.Println("the STH is not valid")
 }
+
+// GetRawEntries exposes the /ct/v1/get-entries result with only the JSON parsing done.
+//func GetRawEntries(ctx context.Context, start, end int64) (*ct.GetEntriesResponse, error) {
+//	return client.GetEntries(ctx, start, end)
+//}
 
 func main() {
 	flag.Parse()
@@ -630,7 +623,9 @@ func main() {
 		verifyConsistency(ctx, logClient)
 	case "validity":
 		currSTH := getSTH(ctx, logClient)
-		checkValidity(ctx, currSTH)
+		//currSTH.Timestamp = 1
+		fmt.Printf("@size=%d", currSTH.Timestamp)
+		checkValidity(ctx, logClient, currSTH)
 	default:
 		dieWithUsage(fmt.Sprintf("Unknown command '%s'", cmd))
 	}
