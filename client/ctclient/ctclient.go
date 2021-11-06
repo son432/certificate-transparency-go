@@ -522,10 +522,22 @@ func checkValidity(ctx context.Context, logClient client.CheckLogClient, sth *ct
 	fmt.Println("the STH is not valid")
 }
 
-// GetRawEntries exposes the /ct/v1/get-entries result with only the JSON parsing done.
-//func GetRawEntries(ctx context.Context, start, end int64) (*ct.GetEntriesResponse, error) {
-//	return client.GetEntries(ctx, start, end)
-//}
+//GetRawEntries exposes the /ct/v1/get-entries result with only the JSON parsing done.
+func GetRawEntries(ctx context.Context, logClient *client.LogClient, start, end int64) (*ct.GetEntriesResponse, error) {
+
+	if start == -1 {
+		glog.Exit("No -first option supplied")
+	}
+	if end == -1 {
+		end = start
+	}
+	rsp, err := logClient.GetRawEntries(ctx, start, end)
+	if err != nil {
+		exitWithDetails(err)
+	}
+
+	return rsp, err
+}
 
 func main() {
 	flag.Parse()
@@ -604,7 +616,7 @@ func main() {
 		addChain(ctx, logClient)
 	case "getroots", "get_roots", "get-roots":
 		getRoots(ctx, logClient)
-	case "getentries", "get_entries", "get-entries":
+	case "printentries", "print_entries", "print-entries":
 		getEntries(ctx, logClient)
 	case "inclusion", "inclusion-proof":
 		getInclusionProof(ctx, logClient)
@@ -626,6 +638,22 @@ func main() {
 		//currSTH.Timestamp = 1
 		fmt.Printf("@size=%d", currSTH.Timestamp)
 		checkValidity(ctx, logClient, currSTH)
+	case "getentries":
+		*getFirst = 1110767133
+		*getLast = 1110767134
+		rsp, err := GetRawEntries(ctx, logClient, *getFirst, *getLast)
+		if err != nil {
+			exitWithDetails(err)
+		}
+		for i, rawEntry := range rsp.Entries {
+			index := *getFirst + int64(i)
+			rle, err := ct.RawLogEntryFromLeaf(index, &rawEntry)
+			if err != nil {
+				fmt.Printf("Index=%d Failed to unmarshal leaf entry: %v", index, err)
+				continue
+			}
+			showRawLogEntry(rle)
+		}
 	default:
 		dieWithUsage(fmt.Sprintf("Unknown command '%s'", cmd))
 	}
