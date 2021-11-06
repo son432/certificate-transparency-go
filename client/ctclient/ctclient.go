@@ -44,6 +44,7 @@ import (
 	"github.com/google/trillian/merkle/rfc6962"
 )
 
+//test
 var (
 	skipHTTPSVerify = flag.Bool("skip_https_verify", false, "Skip verification of HTTPS transport connection")
 	logName         = flag.String("log_name", "Rocketeer", "Name of log to retrieve information from --log_list for")
