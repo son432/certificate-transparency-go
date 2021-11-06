@@ -46,7 +46,7 @@ import (
 
 var (
 	skipHTTPSVerify = flag.Bool("skip_https_verify", false, "Skip verification of HTTPS transport connection")
-	logName         = flag.String("log_name", "", "Name of log to retrieve information from --log_list for")
+	logName         = flag.String("log_name", "Rocketeer", "Name of log to retrieve information from --log_list for")
 	logList         = flag.String("log_list", loglist.AllLogListURL, "Location of master log list (URL or filename)")
 	logURI          = flag.String("log_uri", "https://ct.googleapis.com/rocketeer", "CT log base URI")
 	logMMD          = flag.Duration("log_mmd", 24*time.Hour, "Log's maximum merge delay")
@@ -539,6 +539,10 @@ func GetRawEntries(ctx context.Context, logClient *client.LogClient, start, end 
 	return rsp, err
 }
 
+//there is two option to get public key for signature verification:
+//1) set the variable 'pubKey' with name of file that containts the public key (.pem file)
+//2) set the variable logName and the variable logURL and then the program eill get the key by itself from the
+//public file allLogList.
 func main() {
 	flag.Parse()
 	ctx := context.Background()
@@ -569,6 +573,7 @@ func main() {
 		}
 		opts.PublicKey = string(pubkey)
 	}
+	//opts.PublicKey = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEIFsYyDzBi7MxCAC/oJBXK7dHjG+1aLCOkHjpoHPqTyghLpzA9BYbqvnV16mAw04vUjyYASVGJCUoI3ctBcJAeg=="
 
 	uri := *logURI
 	if *logName != "" {
@@ -634,9 +639,14 @@ func main() {
 		*prevHash = "3ef9a93ffebf4e8237f8aab103b632909322965090c58f98e5ccc87f10186f2a"
 		verifyConsistency(ctx, logClient)
 	case "validity":
+		//prevSTH := getSTH(ctx, logClient)
 		currSTH := getSTH(ctx, logClient)
 		//currSTH.Timestamp = 1
-		fmt.Printf("@size=%d", currSTH.Timestamp)
+		//currSTH.TreeHeadSignature.Signature = []byte{65, 66, 67, 226, 130, 172}
+		fmt.Printf("----------------------------------------------------")
+		when := ct.TimestampToTime(currSTH.Timestamp)
+		fmt.Printf("%v (timestamp %d): Got STH for %v log (size=%d) at %v, hash %x\n", when, currSTH.Timestamp, currSTH.Version, currSTH.TreeSize, logClient.BaseURI(), currSTH.SHA256RootHash)
+		fmt.Printf("%v\n", signatureToString(&currSTH.TreeHeadSignature))
 		checkValidity(ctx, logClient, currSTH)
 	case "getentries":
 		*getFirst = 1110767133
